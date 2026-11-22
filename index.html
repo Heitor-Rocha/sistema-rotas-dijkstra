@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rotas Viçosa • Algoritmo de Dijkstra (INF104)</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Barra Lateral de Controle -->
+      <aside class="sidebar">
+        <header class="sidebar-header">
+          <div>
+            <span class="badge">INF104 • Grafos &amp; Dijkstra</span>
+            <h1>Logística Viçosa</h1>
+          </div>
+          <button id="btn-encerrar" class="btn-danger-outline" title="Encerrar execução do sistema">
+            Encerrar
+          </button>
+        </header>
+
+        <!-- Abas de Navegação -->
+        <nav class="tabs">
+          <button class="tab-btn active" data-tab="tab-rota">Calcular Rota</button>
+          <button class="tab-btn" data-tab="tab-cadastros">Cadastrar</button>
+          <button class="tab-btn" data-tab="tab-rede">Rede (<span id="count-nos">0</span>)</button>
+        </nav>
+
+        <!-- ABA 1: Cálculo de Menor Rota (Requisitos 4.4 e 4.5) -->
+        <section id="tab-rota" class="tab-content active">
+          <div class="card">
+            <h2>Traçar Caminho Mínimo</h2>
+            <div class="form-group">
+              <label for="select-origem">Cidade de Origem</label>
+              <select id="select-origem"></select>
+            </div>
+            <div class="form-group">
+              <label for="select-destino">Cidade de Destino</label>
+              <select id="select-destino"></select>
+            </div>
+            <div class="btn-row">
+              <button id="btn-calcular" class="btn-primary">Calcular Menor Rota</button>
+              <button id="btn-limpar-rota" class="btn-secondary" title="Limpar destaque no mapa">Limpar</button>
+            </div>
+          </div>
+
+          <!-- Card de Resultado -->
+          <div id="resultado-card" class="card resultado-box hidden"></div>
+
+          <!-- Terminal de Execução do Dijkstra -->
+          <div class="terminal-wrapper">
+            <div class="terminal-header">
+              <span>LOG DE EXECUÇÃO • DIJKSTRA (MIN-HEAP)</span>
+              <button id="btn-limpar-log" class="btn-tiny">Limpar</button>
+            </div>
+            <div id="terminal-logs" class="terminal-body"></div>
+          </div>
+        </section>
+
+        <!-- ABA 2: Cadastro de Cidades e Estradas (Requisitos 4.1 e 4.2) -->
+        <section id="tab-cadastros" class="tab-content">
+          <div class="card">
+            <h2>Nova Cidade (Vértice)</h2>
+            <p class="hint">Dica: clique em qualquer ponto do mapa para preencher Latitude e Longitude automaticamente.</p>
+            <form id="form-cidade">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="cidade-id">Sigla (ID)</label>
+                  <input type="text" id="cidade-id" placeholder="Ex: UBA" maxlength="6" required />
+                </div>
+                <div class="form-group flex-2">
+                  <label for="cidade-nome">Nome da Cidade</label>
+                  <input type="text" id="cidade-nome" placeholder="Ex: Ubá" required />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="cidade-lat">Latitude</label>
+                  <input type="number" step="any" id="cidade-lat" placeholder="-21.1200" required />
+                </div>
+                <div class="form-group">
+                  <label for="cidade-lng">Longitude</label>
+                  <input type="number" step="any" id="cidade-lng" placeholder="-42.9425" required />
+                </div>
+              </div>
+              <button type="submit" class="btn-primary full">Cadastrar Cidade</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <h2>Nova Estrada (Aresta Bidirecional)</h2>
+            <form id="form-estrada">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="estrada-origem">Origem</label>
+                  <select id="estrada-origem"></select>
+                </div>
+                <div class="form-group">
+                  <label for="estrada-destino">Destino</label>
+                  <select id="estrada-destino"></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="estrada-dist">Distância (km)</label>
+                <div class="input-with-btn">
+                  <input type="number" step="0.1" min="0" id="estrada-dist" placeholder="Ex: 24.5" required />
+                  <button type="button" id="btn-sugerir-dist" class="btn-secondary" title="Consultar distância rodoviária via OSRM">
+                    Buscar km real
+                  </button>
+                </div>
+              </div>
+              <button type="submit" class="btn-primary full">Conectar Cidades</button>
+            </form>
+          </div>
+        </section>
+
+        <!-- ABA 3: Listagem e Remoção (Requisitos 4.3, 4.6 e 4.7) -->
+        <section id="tab-rede" class="tab-content">
+          <div class="card">
+            <div class="card-header-row">
+              <h2>Cidades Cadastradas</h2>
+              <button id="btn-resetar-rede" class="btn-tiny">Restaurar Padrão</button>
+            </div>
+            <ul id="lista-cidades" class="item-list"></ul>
+          </div>
+
+          <div class="card">
+            <h2>Estradas Ativas (<span id="count-arestas">0</span>)</h2>
+            <ul id="lista-estradas" class="item-list"></ul>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Área Principal do Mapa -->
+      <main class="map-container">
+        <div id="map"></div>
+        <div class="map-legend">
+          <span><i class="dot dot-normal"></i> Cidade</span>
+          <span><i class="dot dot-rota"></i> Rota Mínima</span>
+          <span><i class="line line-normal"></i> Estrada</span>
+          <span><i class="line line-rota"></i> Menor Caminho</span>
+        </div>
+      </main>
+    </div>
+
+    <!-- Tela de Encerramento (Requisito 4.8) -->
+    <div id="tela-encerrado" class="shutdown-overlay hidden">
+      <div class="shutdown-box">
+        <h2>Sistema Encerrado</h2>
+        <p>A execução da aplicação de cálculo de rotas foi finalizada com segurança.</p>
+        <button id="btn-reiniciar" class="btn-primary">Reiniciar Sistema</button>
+      </div>
+    </div>
+
+    <!-- Toast de Notificações -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
